@@ -1,4 +1,4 @@
-# Smart Classroom
+# Втеча з Arduino IDE Serial Monitor, або Скільки технологій треба, щоб показати 24°C
 
 Architecture:
 
