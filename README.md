@@ -1,5 +1,4 @@
-# Smart Classroom
-
+# Втеча з Arduino IDE Serial Monitor, або Скільки технологій треба, щоб показати 24°C
 A real-time classroom environment monitoring system. ESP8266 devices measure temperature and humidity in each room and publish readings over MQTT. A Go backend consumes the data, stores it in PostgreSQL, and exposes a REST API. A React dashboard displays live readings and lets you send commands back to devices.
 
 ---
