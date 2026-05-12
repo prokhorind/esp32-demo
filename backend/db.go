@@ -23,6 +23,7 @@ func InitDB() {
 	query := `
     CREATE TABLE IF NOT EXISTS telemetry (
         id SERIAL PRIMARY KEY,
+        room_id TEXT NOT NULL DEFAULT 'default',
         temperature FLOAT,
         humidity FLOAT,
         created_at TIMESTAMP DEFAULT NOW()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"os"
@@ -49,9 +50,10 @@ func StartConsumer() {
 		log.Fatal(err)
 	}
 
+	// Wildcard binding: receives from classroom/<any_room>/telemetry
 	err = ch.QueueBind(
 		q.Name,
-		"#",
+		"classroom.*.telemetry",
 		"amq.topic",
 		false,
 		nil,
@@ -88,7 +90,13 @@ func StartConsumer() {
 				continue
 			}
 
-			log.Println("Received:", data)
+			if data.RoomID == "" || (data.Temperature == 0 && data.Humidity == 0) {
+				log.Printf("Skipping invalid/non-telemetry message on routing key %s: %s", msg.RoutingKey, string(msg.Body))
+				continue
+			}
+
+			log.Printf("Received from room [%s]: temp=%.1f hum=%.1f",
+				data.RoomID, data.Temperature, data.Humidity)
 
 			SaveTelemetry(data)
 		}
@@ -97,12 +105,11 @@ func StartConsumer() {
 
 func SaveTelemetry(data SensorData) {
 
-	_, err := DB.Exec(
-		`
-        INSERT INTO telemetry
-        (temperature, humidity)
-        VALUES ($1, $2)
-        `,
+	_, err := DB.Exec(`
+        INSERT INTO telemetry (room_id, temperature, humidity)
+        VALUES ($1, $2, $3)
+    `,
+		data.RoomID,
 		data.Temperature,
 		data.Humidity,
 	)
@@ -112,45 +119,84 @@ func SaveTelemetry(data SensorData) {
 	}
 }
 
-func GetLatestTelemetry() (SensorData, error) {
+func GetRooms() ([]string, error) {
 
-	row := DB.QueryRow(`
-        SELECT temperature, humidity
+	rows, err := DB.Query(`
+        SELECT DISTINCT room_id
         FROM telemetry
+        ORDER BY room_id
+    `)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var rooms []string
+
+	for rows.Next() {
+		var room string
+		if err := rows.Scan(&room); err != nil {
+			return nil, err
+		}
+		rooms = append(rooms, room)
+	}
+
+	return rooms, nil
+}
+
+func GetLatestTelemetry(roomID string) (SensorData, error) {
+
+	stmt, err := DB.Prepare(`
+        SELECT room_id, temperature, humidity
+        FROM telemetry
+        WHERE room_id = $1
         ORDER BY created_at DESC
         LIMIT 1
     `)
+	if err != nil {
+		return SensorData{RoomID: roomID}, err
+	}
+	defer stmt.Close()
+
+	row := stmt.QueryRow(roomID)
 
 	var s SensorData
 
-	err := row.Scan(
+	err = row.Scan(
+		&s.RoomID,
 		&s.Temperature,
 		&s.Humidity,
 	)
 
+	if err == sql.ErrNoRows {
+		return SensorData{RoomID: roomID}, sql.ErrNoRows
+	}
+
 	return s, err
 }
 
-func GetAverageTelemetry(
-	from string,
-	to string,
-) (SensorData, error) {
+func GetAverageTelemetry(roomID, from, to string) (SensorData, error) {
 
-	row := DB.QueryRow(`
+	stmt, err := DB.Prepare(`
         SELECT
             COALESCE(AVG(temperature), 0),
             COALESCE(AVG(humidity), 0)
         FROM telemetry
-        WHERE created_at
-        BETWEEN $1 AND $2
-    `,
-		from,
-		to,
-	)
+        WHERE room_id = $1
+        AND created_at BETWEEN $2 AND $3
+    `)
+	if err != nil {
+		return SensorData{RoomID: roomID}, err
+	}
+	defer stmt.Close()
 
-	var s SensorData
+	row := stmt.QueryRow(roomID, from, to)
 
-	err := row.Scan(
+	s := SensorData{RoomID: roomID}
+
+	err = row.Scan(
 		&s.Temperature,
 		&s.Humidity,
 	)

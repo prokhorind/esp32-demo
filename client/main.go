@@ -3,45 +3,42 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 type SensorData struct {
-	ID          string  `json:"id"`
+	RoomID      string  `json:"room_id"`
 	Temperature float64 `json:"temperature"`
 	Humidity    float64 `json:"humidity"`
-	Light       int     `json:"light"`
 	Timestamp   string  `json:"timestamp"`
 }
+
+// Simulated rooms — each acts as an independent ESP8266
+var rooms = []string{"room-a"}
 
 func main() {
 
 	opts := mqtt.NewClientOptions()
 
-	opts.AddBroker("tcp://localhost:1883")
+	opts.AddBroker("tcp://sparrow.rmq.cloudamqp.com:1883")
+	opts.SetClientID("go-esp8266-emulator")
+	opts.SetUsername("username")
+	opts.SetPassword("password")
 
-	opts.SetClientID("go-esp32-emulator")
-
-	opts.SetUsername("admin")
-	opts.SetPassword("admin")
-
-	// Auto reconnect
 	opts.AutoReconnect = true
 	opts.ConnectRetry = true
 	opts.ConnectRetryInterval = 5 * time.Second
+	opts.SetCleanSession(true)
 
-	// Debug callbacks
 	opts.OnConnect = func(c mqtt.Client) {
 		fmt.Println("MQTT connected")
+		subscribeCommands(c)
 	}
 
-	opts.OnConnectionLost = func(
-		c mqtt.Client,
-		err error,
-	) {
+	opts.OnConnectionLost = func(c mqtt.Client, err error) {
 		fmt.Println("MQTT connection lost:", err)
 	}
 
@@ -63,77 +60,73 @@ func main() {
 
 	fmt.Println("Connected to RabbitMQ MQTT")
 
+	// Publish telemetry in background
+	go publishLoop(client)
+
+	// Block forever — subscription callbacks run in background goroutines
+	select {}
+}
+
+func publishLoop(c mqtt.Client) {
 	for {
+		for _, roomID := range rooms {
 
-		data := SensorData{
-			ID:          generateID(),
-			Temperature: randomFloat(20, 30),
-			Humidity:    randomFloat(40, 70),
-			Light:       rand.Intn(1000),
-			Timestamp:   time.Now().Format(time.RFC3339),
+			data := SensorData{
+				RoomID:      roomID,
+				Temperature: randomFloat(20, 30),
+				Humidity:    randomFloat(40, 70),
+				Timestamp:   time.Now().Format(time.RFC3339),
+			}
+
+			payload, err := json.Marshal(data)
+			if err != nil {
+				fmt.Println("JSON marshal failed:", err)
+				continue
+			}
+
+			topic := fmt.Sprintf("classroom/%s/telemetry", roomID)
+
+			fmt.Printf("[%s] Publishing → %s\n", roomID, string(payload))
+
+			token := c.Publish(topic, 1, false, payload)
+
+			ok := token.WaitTimeout(5 * time.Second)
+			if !ok {
+				fmt.Printf("[%s] Publish timeout\n", roomID)
+				continue
+			}
+			if token.Error() != nil {
+				fmt.Printf("[%s] Publish failed: %v\n", roomID, token.Error())
+			}
 		}
 
-		payload, err := json.Marshal(data)
-
-		if err != nil {
-
-			fmt.Println("JSON marshal failed:", err)
-
-			time.Sleep(2 * time.Second)
-
-			continue
-		}
-
-		fmt.Println("-----------------------------------")
-		fmt.Println("Publishing message")
-		fmt.Println("Topic: classroom/telemetry")
-		fmt.Println("Payload:", string(payload))
-
-		token := client.Publish(
-			"classroom/telemetry",
-			1,     // QoS 1
-			false, // retain
-			payload,
-		)
-
-		ok := token.WaitTimeout(5 * time.Second)
-
-		if !ok {
-
-			fmt.Println("Publish timeout")
-
-			time.Sleep(2 * time.Second)
-
-			continue
-		}
-
-		if token.Error() != nil {
-
-			fmt.Println("Publish failed:", token.Error())
-
-			time.Sleep(2 * time.Second)
-
-			continue
-		}
-
-		fmt.Println("Message delivered successfully")
-
-		time.Sleep(5 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }
 
-func randomFloat(
-	min float64,
-	max float64,
-) float64 {
+// subscribeCommands listens on classroom/<room>/commands for each simulated room
+func subscribeCommands(c mqtt.Client) {
 
-	return min + rand.Float64()*(max-min)
+	for _, roomID := range rooms {
+
+		room := roomID // capture loop variable
+
+		topic := fmt.Sprintf("classroom/%s/commands", room)
+
+		token := c.Subscribe(topic, 1, func(_ mqtt.Client, msg mqtt.Message) {
+			fmt.Printf("[%s] ← Received command on topic [%s]: %s\n", room, msg.Topic(), string(msg.Payload()))
+		})
+
+		token.Wait()
+
+		if token.Error() != nil {
+			fmt.Printf("Failed to subscribe to commands for [%s]: %v\n", room, token.Error())
+		} else {
+			fmt.Printf("Subscribed to commands for [%s] on topic: %s\n", room, topic)
+		}
+	}
 }
 
-func generateID() string {
-
-	return fmt.Sprintf(
-		"msg-%d",
-		time.Now().UnixNano(),
-	)
+func randomFloat(min, max float64) float64 {
+	return min + rand.Float64()*(max-min)
 }
