@@ -4,7 +4,6 @@ Architecture:
 
 
 ESP32 -> RabbitMQ -> Go Backend -> PostgreSQL
-Reacr -HTTP> Go Service -> HTML 
 ## Start project
 
 ```bash
