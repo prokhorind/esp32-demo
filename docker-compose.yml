@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "1883:1883"
+    command: >
+      bash -c "
+        rabbitmq-plugins enable rabbitmq_mqtt &&
+        rabbitmq-server
+      "
+
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+
+  backend:
+    build: ./backend
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
+      DATABASE_URL: postgresql://
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
