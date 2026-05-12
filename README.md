@@ -15,6 +15,7 @@ ipconfig getifaddr en0
 
 RabbitMQ dashboard:
 http://localhost:15672
+https://sparrow.rmq.cloudamqp.com/#/
 
 Dashboard
 http://localhost:5173/
