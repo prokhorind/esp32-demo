@@ -2,16 +2,22 @@
 
 Architecture:
 
-ESP32 -> RabbitMQ -> Go Backend -> PostgreSQL
 
+ESP32 -> RabbitMQ -> Go Backend -> PostgreSQL
+Reacr -HTTP> Go Service -> HTML 
 ## Start project
 
 ```bash
 docker compose up --build
 ```
 
+ipconfig getifaddr en0
+
 RabbitMQ dashboard:
 http://localhost:15672
+
+Dashboard
+http://localhost:5173/
 
 Login:
 admin

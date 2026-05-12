@@ -1,95 +1,85 @@
-#include <WiFi.h>
+#include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
 
-const char* WIFI_SSID = "YOUR_WIFI";
-const char* WIFI_PASSWORD = "YOUR_PASSWORD";
+// Pins and Sensor
+#define DHTPIN 4
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
 
-const char* MQTT_SERVER = "192.168.0.100"; // IP вашого Docker host
-const int MQTT_PORT = 1883;
-
-const char* MQTT_USER = "admin";
-const char* MQTT_PASSWORD = "admin";
+// Network Credentials
+const char* ssid = "Denys-mobile";
+const char* password = "pass";
+const char* mqtt_server = "172.20.10.10";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-void connectWiFi() {
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+}
 
+void setup_wifi() {
+  delay(10);
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-
-  Serial.println();
-  Serial.println("WiFi connected");
+  Serial.println("\nWiFi connected");
 }
 
-void connectMQTT() {
-
+void reconnect() {
   while (!client.connected()) {
-
-    Serial.println("Connecting MQTT...");
-
-    if (
-      client.connect(
-        "esp32-client",
-        MQTT_USER,
-        MQTT_PASSWORD
-      )
-    ) {
-
-      Serial.println("MQTT connected");
-
+    Serial.print("Attempting MQTT connection...");
+    // Matches your Go credentials: ClientID, Username, Password
+    if (client.connect("arduino-client", "admin", "admin")) {
+      Serial.println("connected");
     } else {
-
-      Serial.print("Failed: ");
-      Serial.println(client.state());
-
-      delay(2000);
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
     }
   }
 }
 
-void setup() {
-
-  Serial.begin(115200);
-
-  connectWiFi();
-
-  client.setServer(MQTT_SERVER, MQTT_PORT);
-}
-
 void loop() {
-
   if (!client.connected()) {
-    connectMQTT();
+    reconnect();
   }
-
   client.loop();
 
-  float temperature = 24.5;
-  float humidity = 55.0;
-  int light = 800;
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
 
-  String payload = "{";
-  payload += "\"temperature\":";
-  payload += temperature;
-  payload += ",";
-  payload += "\"humidity\":";
-  payload += humidity;
-  payload += ",";
-  payload += "\"light\":";
-  payload += light;
-  payload += "}";
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
 
-  Serial.println(payload);
+  StaticJsonDocument<200> doc;
+  doc["id"] = "msg-" + String(millis());
+  doc["temperature"] = t;
+  doc["humidity"] = h;
+  doc["light"] = analogRead(34); // Mock light data or actual LDR pin
+  doc["timestamp"] = "2023-10-27T10:00:00Z"; // ESP32 needs NTP for real timestamps
 
-  client.publish(
-    "classroom/telemetry",
-    payload.c_str()
-  );
+  char buffer[256];
+  serializeJson(doc, buffer);
 
-  delay(5000);
+  Serial.print("Publishing: ");
+  Serial.println(buffer);
+
+  // Publish to the same topic as your Go code
+  client.publish("classroom/telemetry", buffer);
+
+  delay(10000); // 10 second interval
 }
