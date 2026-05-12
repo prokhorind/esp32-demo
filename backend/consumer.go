@@ -100,12 +100,11 @@ func SaveTelemetry(data SensorData) {
 	_, err := DB.Exec(
 		`
         INSERT INTO telemetry
-        (temperature, humidity, light)
-        VALUES ($1, $2, $3)
+        (temperature, humidity)
+        VALUES ($1, $2)
         `,
 		data.Temperature,
 		data.Humidity,
-		data.Light,
 	)
 
 	if err != nil {
@@ -116,7 +115,7 @@ func SaveTelemetry(data SensorData) {
 func GetLatestTelemetry() (SensorData, error) {
 
 	row := DB.QueryRow(`
-        SELECT temperature, humidity, light
+        SELECT temperature, humidity
         FROM telemetry
         ORDER BY created_at DESC
         LIMIT 1
@@ -127,7 +126,6 @@ func GetLatestTelemetry() (SensorData, error) {
 	err := row.Scan(
 		&s.Temperature,
 		&s.Humidity,
-		&s.Light,
 	)
 
 	return s, err
@@ -141,8 +139,7 @@ func GetAverageTelemetry(
 	row := DB.QueryRow(`
         SELECT
             COALESCE(AVG(temperature), 0),
-            COALESCE(AVG(humidity), 0),
-            COALESCE(AVG(light), 0)
+            COALESCE(AVG(humidity), 0)
         FROM telemetry
         WHERE created_at
         BETWEEN $1 AND $2
@@ -156,7 +153,6 @@ func GetAverageTelemetry(
 	err := row.Scan(
 		&s.Temperature,
 		&s.Humidity,
-		&s.Light,
 	)
 
 	return s, err

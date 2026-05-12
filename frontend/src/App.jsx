@@ -10,6 +10,8 @@ function App() {
     const [weekAverage, setWeekAverage] =
         useState(null)
 
+    const API_URL = import.meta.env.VITE_API_URL
+
     async function loadData() {
 
         try {
@@ -19,7 +21,7 @@ function App() {
             // -------------------------
 
             const latestResponse = await fetch(
-                "http://localhost:8080/telemetry/latest"
+                `${API_URL}/telemetry/latest`
             )
 
             const latestData =
@@ -50,7 +52,7 @@ function App() {
             // -------------------------
 
             const dayResponse = await fetch(
-                `http://localhost:8080/telemetry/average?from=${today.toISOString()}&to=${now.toISOString()}`
+                `${API_URL}/telemetry/average?from=${today.toISOString()}&to=${now.toISOString()}`
             )
 
             const dayData =
@@ -63,7 +65,7 @@ function App() {
             // -------------------------
 
             const weekResponse = await fetch(
-                `http://localhost:8080/telemetry/average?from=${weekAgo.toISOString()}&to=${now.toISOString()}`
+                `${API_URL}/telemetry/average?from=${weekAgo.toISOString()}&to=${now.toISOString()}`
             )
 
             const weekData =
@@ -137,14 +139,6 @@ function App() {
                     }
                 />
 
-                <Card
-                    title="💡 Light"
-                    value={
-                        `${(latest.light ?? 0)
-                            .toFixed(0)}`
-                    }
-                />
-
             </div>
 
             {/* ------------------- */}
@@ -173,14 +167,6 @@ function App() {
                     }
                 />
 
-                <Card
-                    title="💡 Avg Light"
-                    value={
-                        `${(dayAverage.light ?? 0)
-                            .toFixed(0)}`
-                    }
-                />
-
             </div>
 
             {/* ------------------- */}
@@ -206,14 +192,6 @@ function App() {
                     value={
                         `${(weekAverage.humidity ?? 0)
                             .toFixed(1)} %`
-                    }
-                />
-
-                <Card
-                    title="💡 Avg Light"
-                    value={
-                        `${(weekAverage.light ?? 0)
-                            .toFixed(0)}`
                     }
                 />
 

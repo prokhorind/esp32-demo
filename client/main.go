@@ -63,8 +63,6 @@ func main() {
 
 	fmt.Println("Connected to RabbitMQ MQTT")
 
-	rand.Seed(time.Now().UnixNano())
-
 	for {
 
 		data := SensorData{

@@ -20,7 +20,7 @@ App
 https://render.com
 
 Dashboard
-http://localhost:5173/
+http://localhost:3000/
 
 Login:
 admin

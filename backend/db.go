@@ -25,7 +25,6 @@ func InitDB() {
         id SERIAL PRIMARY KEY,
         temperature FLOAT,
         humidity FLOAT,
-        light INTEGER,
         created_at TIMESTAMP DEFAULT NOW()
     )
     `

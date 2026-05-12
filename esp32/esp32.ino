@@ -69,7 +69,6 @@ void loop() {
   doc["id"] = "msg-" + String(millis());
   doc["temperature"] = t;
   doc["humidity"] = h;
-  doc["light"] = analogRead(34); // Mock light data or actual LDR pin
   doc["timestamp"] = "2023-10-27T10:00:00Z"; // ESP32 needs NTP for real timestamps
 
   char buffer[256];
