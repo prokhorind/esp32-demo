@@ -8,8 +8,8 @@ RUN npm install
 
 COPY . .
 
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+# API calls go to /api which nginx proxies to the backend — no hardcoded host needed
+ENV VITE_API_URL=/api
 
 RUN npm run build
 
@@ -18,10 +18,9 @@ FROM nginx:1.27-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Explicit port so it's clear what this container serves on
-EXPOSE 3000
+# Use our custom nginx config (proxy /api → backend, SPA fallback)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Override nginx default port from 80 to 3000
-RUN sed -i 's/listen\s*80;/listen 3000;/g' /etc/nginx/conf.d/default.conf
+EXPOSE 3000
 
 CMD ["nginx", "-g", "daemon off;"]
